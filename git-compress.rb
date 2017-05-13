@@ -41,7 +41,7 @@ end
 def main
   return no_commit_provided_error unless commit
   return no_tag_provided_error unless tag
-  original_commit = initial_commit
+  original_commit = `git rev-parse HEAD`
 
   parsed_commits = parse_commits_by_tag
 
@@ -92,10 +92,6 @@ def parse_commits_by_tag
       result << commit
     end
   end
-end
-
-def initial_commit
-  @initial_commit ||= `git rev-parse HEAD`
 end
 
 def no_commit_provided_error

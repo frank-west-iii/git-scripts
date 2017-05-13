@@ -4,8 +4,8 @@ HELP = <<HELP
 HELP
 
 USAGE = <<USAGE
-Usage: git compress [tag] [options]
-If [tag] is not specified, git-compress will do nothing. The possible
+Usage: git compress [branch] [tag] [options]
+If [branch] or [tag] is not specified, git-compress will do nothing. The possible
 [options] are:
   -h, --help          displays this help
 USAGE

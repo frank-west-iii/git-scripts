@@ -65,7 +65,7 @@ class Compress
     end
 
     unless message
-      self.errors << "You must provide a base commit when calling git compress"
+      self.errors << "You must provide a message when calling git compress"
     end
 
     unless clean_status

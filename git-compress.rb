@@ -52,7 +52,7 @@ class Compress
     reset_to_commit
     compress
   ensure
-    puts "Reset by running git reset --hard #{original_commit}"
+    puts "Reset by running git reset --hard #{original_commit}" if valid?
   end
 
   protected
@@ -60,6 +60,7 @@ class Compress
   attr_reader :commit, :errors, :message, :original_commit
 
   def valid?
+    return @_valid if defined?(@_valid)
     unless commit
       self.errors << "You must provide a commit sha or name when calling git compress"
     end
@@ -72,7 +73,7 @@ class Compress
       self.errors << "You have changes in your repo. Please commit or stash before proceeding."
     end
 
-    errors.count == 0
+    @_valid = errors.count == 0
   end
 
   def clean_status

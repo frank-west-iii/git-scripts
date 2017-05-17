@@ -4,14 +4,14 @@ HELP = <<HELP
 HELP
 
 USAGE = <<USAGE
-Usage: git compress [branch] [tag] [options]
-If [branch] or [tag] is not specified, git-compress will do nothing. The possible
+Usage: git compress [branch] [message] [options]
+If [branch] or [message] is not specified, git-compress will do nothing. The possible
 [options] are:
   -h, --help          displays this help
 USAGE
 
 COPYRIGHT = <<COPYRIGHT
-git-compress Copyright 2015--2016 Frank West
+git-compress Copyright 2015--2017 Frank West
 <frank dot west dot iii at gmail dot com>.
 This is free and unencumbered software released into the public domain.
 Anyone is free to copy, modify, publish, use, compile, sell, or distribute this
@@ -37,69 +37,83 @@ if ARGV.delete("--help") || ARGV.delete("-h")
   exit
 end
 
+Commit = Struct.new(:sha, :message)
 
-def main
-  return no_commit_provided_error unless commit
-  return no_tag_provided_error unless tag
-  original_commit = `git rev-parse HEAD`
+class Compress
+  def initialize(commit, message)
+    @commit = commit
+    @message = message
+    @errors = []
+    @original_commit = `git rev-parse HEAD`.chomp
+  end
 
-  parsed_commits = parse_commits_by_tag
+  def call
+    return display_errors unless valid?
+    reset_to_commit
+    compress
+  ensure
+    puts "Reset by running git reset --hard #{original_commit}"
+  end
 
-  reset_to_commit
+  protected
 
-  parsed_commits.each do |parent|
-    `git cherry-pick #{parent[:sha]}`
-    parent[:children].each do |child|
-      `git cherry-pick --no-commit #{child[:sha]}`
-      `git commit --amend --no-edit`
+  attr_reader :commit, :errors, :message, :original_commit
+
+  def valid?
+    unless commit
+      self.errors << "You must provide a commit sha or name when calling git compress"
     end
+
+    unless message
+      self.errors << "You must provide a base commit when calling git compress"
+    end
+
+    unless clean_status
+      self.errors << "You have changes in your repo. Please commit or stash before proceeding."
+    end
+
+    errors.count == 0
   end
 
-rescue
-  puts "Reset by running git reset --hard #{original_commit}"
-end
-
-def commit
-  @commit ||= ARGV[0]
-end
-
-def tag
-  @tag ||= ARGV[1]
-end
-
-def reset_to_commit
-  `git reset --hard #{commit}`
-end
-
-def commits
-  `git log #{commit}.. --oneline --reverse`.split("\n").map do |commit|
-    sha, message = commit.match(/(.*?)\s(.*)/).captures
-    { sha: sha, message: message.strip, children: [] }
+  def clean_status
+    !!(`git status` =~ /nothing to commit, working directory clean/)
   end
-end
 
-def parse_commits_by_tag
-  parent = nil
-  commits.each_with_object([]) do |commit, result|
-    if commit[:message] == tag
-      unless parent
-        puts "Error: Compressed commit cannot be a WIP itself"
-        exit
+  def display_errors
+    puts "Error:\n#{errors.join("\n")}\ne.g. git compress master WIP"
+  end
+
+  def reset_to_commit
+    `git reset --hard #{commit}`
+  end
+
+  def compress
+    compressables = []
+    commits.each do |commit|
+      if commit.message == message
+        compressables << commit
+      else
+        compressables.each do |compressable|
+          `git cherry-pick -n #{compressable.sha}`
+        end
+        message = `git show -s --format=%B #{commit.sha}`
+        `git cherry-pick -n #{commit.sha}`
+        `git commit -m "#{message}"`
+        compressables = []
       end
-      parent[:children] << commit
-    else
-      parent = commit
-      result << commit
+    end
+    compressables.each do |compressable|
+      `git cherry-pick #{compressable.sha}`
+    end
+  end
+
+  def commits
+    return @_commits if defined?(@_commits)
+    raw = `git log #{commit}..#{original_commit} --oneline --reverse`
+    @_commits = raw.split("\n").map do |commit|
+      Commit.new(*commit.match(/(.*?)\s(.*)/).captures)
     end
   end
 end
 
-def no_commit_provided_error
-  puts "Error: You must provide a commit sha or name when calling git compress"
-end
-
-def no_tag_provided_error
-  puts "Error: You must provide a tag when calling git compress"
-end
-
-main
+Compress.new(ARGV[0], ARGV[1]).call

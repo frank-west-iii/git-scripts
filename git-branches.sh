@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Usage: Lists local branches in reverse order of latest commit with iso and relative dates
+#        Also lists the branch description if it has one set alongside it.
+
 function listBranchWithDescription() {
   branches=`git for-each-ref --format='%(committerdate:iso8601) %(committerdate:relative) %(refname)' --sort -committerdate refs/heads/`
 
